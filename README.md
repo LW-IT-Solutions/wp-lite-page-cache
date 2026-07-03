@@ -1,10 +1,10 @@
 === Lite Page Cache ===
-Contributors: LukasWojcik.com
-Requires at least: 5.0
-Tested up to: 6.4
-Stable tag: 1.0.0
-License: GPLv2 or later
-License URI: http://www.gnu.org/licenses/gpl-2.0.html
+* Contributors: LukasWojcik.com
+* Requires at least: 5.0
+* Tested up to: 6.4
+* Stable tag: 1.0.0
+* License: GPLv2 or later
+* License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
 A lightweight, blazingly fast caching plugin for static pages and blog posts.
 
@@ -30,10 +30,10 @@ Key Features:
 == Frequently Asked Questions ==
 
 = Does it cache the WooCommerce cart or checkout? =
-No. By default, it only caches singular posts and pages without query parameters. E-commerce endpoints usually require sessions and should not be cached.
+* No. By default, it only caches singular posts and pages without query parameters. E-commerce endpoints usually require sessions and should not be cached.
 
 = Where are the cache files stored? =
-The HTML files are saved securely in your `/wp-content/cache/lite-page-cache/` directory.
+* The HTML files are saved securely in your `/wp-content/cache/lite-page-cache/` directory.
 
 == Changelog ==
 
