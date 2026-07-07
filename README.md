@@ -8,9 +8,6 @@
 
 A lightweight, blazingly fast caching plugin for static pages and blog posts.
 
-== Changelog ==
-* 1.0.1 Added Checks for not serving empty caches
-
 == Description ==
 
 Lite Page Cache is a straightforward, zero-configuration plugin that dramatically speeds up your WordPress site. It works by capturing the output of your pages and single blog posts, saving them as static HTML files.
@@ -39,6 +36,5 @@ Key Features:
 * The HTML files are saved securely in your `/wp-content/cache/lite-page-cache/` directory.
 
 == Changelog ==
-
-= 1.0.0 =
-* Initial release.
+* 1.0.1 Added Checks for not serving empty caches
+* 1.0.0 Initial release.
