@@ -3,7 +3,7 @@
 /**
  * Plugin Name: Lite Page Cache
  * Description: A lightweight, blazingly fast caching plugin for static pages and blog posts.
- * Version: 1.0.0
+ * Version: 1.0.1
  * Author: LukasWojcik.com
  * Text Domain: lite-page-cache
  */
@@ -49,6 +49,8 @@ class Lite_Page_Cache {
 
         // Serve cache if it exists
         if ( file_exists( $cache_file ) ) {
+			$x = file_get_contents($cache_file);
+			if(strlen($x) < 300) { unset($cache_file); return; }
             readfile( $cache_file );
             echo "\n<!-- Served from Lite Page Cache -->";
             exit;
@@ -69,6 +71,7 @@ class Lite_Page_Cache {
         $cache_file = $this->get_cache_file_path();
         
         // Save the buffer to a file
+		if(strlen($buffer) < 300) { return $buffer; }
         file_put_contents( $cache_file, $buffer . "\n<!-- LukasWojcik.com -->\n<!-- Cached by Lite Page Cache at " . current_time('mysql') . "-->" );
         
         return $buffer;
