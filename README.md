@@ -2,11 +2,14 @@
 * Contributors: LukasWojcik.com
 * Requires at least: 5.0
 * Tested up to: 6.4
-* Stable tag: 1.0.0
+* Stable tag: 1.0.1
 * License: GPLv2 or later
 * License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
 A lightweight, blazingly fast caching plugin for static pages and blog posts.
+
+== Changelog ==
+* 1.0.1 Added Checks for not serving empty caches
 
 == Description ==
 
