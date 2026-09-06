@@ -177,4 +177,12 @@ class Lite_Page_Cache {
 }
 
 // Initialize the plugin
-new Lite_Page_Cache();
+$lite_page_cache = new Lite_Page_Cache();
+
+register_activation_hook( __FILE__, function () use ( $lite_page_cache ) {
+    $lite_page_cache->dropin_installieren();
+} );
+register_deactivation_hook( __FILE__, function () use ( $lite_page_cache ) {
+    $lite_page_cache->dropin_entfernen();
+    $lite_page_cache->delete_cache_files();
+} );
