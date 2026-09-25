@@ -15,21 +15,38 @@
  *
  * DER SCHLUESSEL MUSS DERSELBE SEIN wie in Lite_Page_Cache::get_cache_file_path().
  * Weicht er ab, findet dieser Weg nichts und das Plugin schreibt weiter -
- * der Cache waere dann still wirkungslos statt kaputt.
+ * der Cache waere dann still wirkungslos statt kaputt. Wer eine der beiden
+ * Seiten aendert, aendert die andere mit.
+ *
+ * WAS HIER NICHT GESCHIEHT: geschrieben wird nichts. Ein fehlender Eintrag
+ * fuehrt zurueck in den normalen Ablauf, und das Plugin legt ihn wie bisher
+ * am Ende der Anfrage an.
+ *
+ * Die Kennzeile darunter macht die Datei wiedererkennbar: das Plugin fasst
+ * wp-content/advanced-cache.php nur an, wenn sie dort steht. Ein Drop-in
+ * eines anderen Cache-Plugins bleibt damit unangetastet.
  *
  * @package lite-page-cache
  */
+
+// LPC-DROPIN 1.1.0
 
 if ( ! defined( 'ABSPATH' ) ) {
 	return;
 }
 
-// LPC-DROPIN 1.1.0
-
 if ( ! function_exists( 'lpc_dropin_ausliefern' ) ) {
 
+	/**
+	 * Einen abgelegten Eintrag ausliefern, falls einer passt.
+	 *
+	 * Kehrt in jedem anderen Fall einfach zurueck; WordPress laeuft dann
+	 * normal weiter.
+	 */
 	function lpc_dropin_ausliefern() {
 
+		// Kommandozeile, Cron und Installationsroutine haben mit
+		// ausgelieferten Seiten nichts zu tun.
 		if ( ( defined( 'WP_CLI' ) && WP_CLI )
 			|| ( defined( 'DOING_CRON' ) && DOING_CRON )
 			|| ( defined( 'WP_INSTALLING' ) && WP_INSTALLING ) ) {
@@ -47,12 +64,21 @@ if ( ! function_exists( 'lpc_dropin_ausliefern' ) ) {
 			return;
 		}
 
+		// ---- Nur eine schlichte GET-Anfrage --------------------------
+		// Gleiche Bedingung wie im Plugin: leeres $_GET, Methode GET.
 		if ( empty( $_SERVER['REQUEST_METHOD'] ) || 'GET' !== $_SERVER['REQUEST_METHOD'] || ! empty( $_GET ) ) {
 			return;
 		}
 
-		// Das Plugin fragt is_user_logged_in(); hier gibt es die Funktion noch
-		// nicht, geprueft wird also das Merkmal, aus dem WordPress sie ableitet.
+		// ---- Wer angemeldet ist, sieht etwas anderes ------------------
+		// Das Plugin fragt is_user_logged_in(); hier gibt es die Funktion
+		// noch nicht, und deshalb wird das Merkmal geprueft, aus dem
+		// WordPress sie ableitet - das Anmeldecookie. Dazu die beiden
+		// Cookies, die eine Seite ebenfalls persoenlich machen: das
+		// Beitragspasswort und die gemerkten Kommentardaten.
+		// LIEBER EINMAL ZU OFT AUSSTEIGEN: ein unbekanntes Cookie kostet
+		// hier eine langsame Antwort, eine falsche Auslieferung kostet
+		// die Sitzung eines anderen.
 		if ( ! empty( $_COOKIE ) && is_array( $_COOKIE ) ) {
 			foreach ( array_keys( $_COOKIE ) as $name ) {
 				if ( 0 === strpos( $name, 'wordpress_logged_in_' )
@@ -63,15 +89,19 @@ if ( ! function_exists( 'lpc_dropin_ausliefern' ) ) {
 			}
 		}
 
+		// ---- Nur unter dem eigenen Namen ------------------------------
 		$angefragt = isset( $_SERVER['HTTP_HOST'] ) ? strtolower( (string) $_SERVER['HTTP_HOST'] ) : '';
 		$angefragt = preg_replace( '/:\d+$/', '', $angefragt );
 		if ( '' === $angefragt || $angefragt !== $konf['host'] ) {
 			return;
 		}
 
-		// is_ssl() Zeile fuer Zeile nachgebaut: der Port zaehlt NUR, wenn
-		// $_SERVER['HTTPS'] gar nicht gesetzt ist. Eine Abweichung hier erzeugt
-		// einen zweiten Schluessel fuer dieselbe Seite.
+		// ---- Schema genau so bestimmen wie is_ssl() -------------------
+		// Nachgebaut statt sinngemaess uebernommen: is_ssl() prueft den
+		// Port NUR, wenn $_SERVER['HTTPS'] ueberhaupt nicht gesetzt ist.
+		// Ein gesetztes 'off' bedeutet dort also http, auch auf Port 443.
+		// Eine Abweichung an dieser Stelle erzeugt einen zweiten
+		// Schluessel fuer dieselbe Seite, und der Cache traefe nie.
 		$https = false;
 		if ( isset( $_SERVER['HTTPS'] ) ) {
 			$h = strtolower( (string) $_SERVER['HTTPS'] );
@@ -82,6 +112,7 @@ if ( ! function_exists( 'lpc_dropin_ausliefern' ) ) {
 			$https = true;
 		}
 
+		// ---- Pfad ohne Abfrageteil ------------------------------------
 		$pfad  = isset( $_SERVER['REQUEST_URI'] ) ? (string) $_SERVER['REQUEST_URI'] : '/';
 		$frage = strpos( $pfad, '?' );
 		if ( false !== $frage ) {
@@ -99,45 +130,58 @@ if ( ! function_exists( 'lpc_dropin_ausliefern' ) ) {
 			return;
 		}
 
+		// Dieselbe Untergrenze wie im Plugin. Was kleiner ist, ist keine
+		// Seite, sondern der Rest eines Fehlschlags.
 		$min = isset( $konf['min_bytes'] ) ? (int) $konf['min_bytes'] : 300;
 		if ( $groesse < $min ) {
 			return;
 		}
 
+		// ---- Verfallszeit ---------------------------------------------
 		// Abgelaufene Eintraege werden hier geloescht und nicht nur
-		// uebersprungen: nach einem Treffer laeuft WordPress nie, das Plugin
-		// kaeme also nicht dazu.
+		// uebersprungen - genau wie im Plugin. Wuerden sie nur
+		// uebersprungen, liesse dieser Weg sie liegen, denn nach einem
+		// Treffer laeuft WordPress nie, und das Plugin kaeme nicht dazu.
 		$ttl = isset( $konf['ttl'] ) ? (int) $konf['ttl'] : 0;
 		if ( $ttl > 0 && ( time() - $mtime ) > $ttl ) {
 			@unlink( $datei );
 			return;
 		}
 
-		$alter   = max( 0, time() - $mtime );
-		$modifi  = gmdate( 'D, d M Y H:i:s', $mtime ) . ' GMT';
-		$charset = isset( $konf['charset'] ) && $konf['charset'] ? (string) $konf['charset'] : 'UTF-8';
+		$alter    = max( 0, time() - $mtime );
+		$modifi   = gmdate( 'D, d M Y H:i:s', $mtime ) . ' GMT';
+		$charset  = isset( $konf['charset'] ) && $konf['charset'] ? (string) $konf['charset'] : 'UTF-8';
 
 		header( 'X-Cache: HIT' );
 		header( 'X-Cache-Enabled: true' );
+		// Sagt, dass dieser Treffer VOR WordPress beantwortet wurde. Der
+		// Zweig im Plugin sendet die Zeile nicht; damit sind die beiden
+		// Wege von aussen unterscheidbar, ohne die Antwortzeit zu messen.
 		header( 'X-Cache-Handler: advanced-cache.php' );
 		header( 'Last-Modified: ' . $modifi );
 		header( 'Age: ' . $alter );
 
-		// Bewusst kein max-age: der Browser soll weiter fragen, damit eine
-		// Invalidierung bei save_post ankommt.
+		// ---- Rueckfrage billig beantworten -----------------------------
+		// Wer Last-Modified bekommen hat, darf damit wiederkommen. Ein 304
+		// spart den ganzen Rumpf. Bewusst kein max-age: der Browser soll
+		// weiterhin fragen, damit eine Invalidierung bei save_post
+		// ankommt - genau die Ueberlegung wie im Plugin.
 		$ims = isset( $_SERVER['HTTP_IF_MODIFIED_SINCE'] ) ? strtotime( (string) $_SERVER['HTTP_IF_MODIFIED_SINCE'] ) : false;
 		if ( false !== $ims && $ims >= $mtime ) {
 			http_response_code( 304 );
 			exit;
 		}
 
-		// Die Kennzeile am Ende zaehlt zur Laenge. Content-Length auf die
-		// blosse Dateigroesse zu setzen und danach noch etwas auszugeben ist
-		// der klassische Weg zu einer abgeschnittenen Antwort.
-		$kennung = "\n<!-- Served from Lite Page Cache (drop-in) -->";
 		header( 'Content-Type: text/html; charset=' . $charset );
+		// Die Kennzeile am Ende zaehlt zur Laenge. Content-Length auf die
+		// blosse Dateigroesse zu setzen und danach noch etwas auszugeben
+		// ist der klassische Weg zu einer abgeschnittenen Antwort.
+		$kennung = "\n<!-- Served from Lite Page Cache (drop-in) -->";
 		header( 'Content-Length: ' . ( $groesse + strlen( $kennung ) ) );
 
+		// HEAD beantwortet dieselben Kopfzeilen ohne Rumpf. Der Fall kann
+		// hier gar nicht auftreten (oben wird auf GET geprueft) und steht
+		// trotzdem da, falls die Bedingung oben je gelockert wird.
 		if ( isset( $_SERVER['REQUEST_METHOD'] ) && 'HEAD' === $_SERVER['REQUEST_METHOD'] ) {
 			exit;
 		}
